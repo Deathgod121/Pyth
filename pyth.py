@@ -434,33 +434,45 @@ def get_map_detail_from_clip(label):
     map_data = win32clipboard.GetClipboardData()
     win32clipboard.CloseClipboard()
 
-    map_line_nr=0
+    map_line_nr = 0
+    valid        = False
     for map_line in map_data.split("\n"):
         map_line_nr=map_line_nr+1
+
+        # --- Map Tier + Validate --- # 
+        if map_line.split(":")[0]=="Map Tier":
+            map_tier = map_line.split(":")[1]
+            valid    = True
+
         # --- Map Name --- #
         if map_line_nr==2:
-        	map_name = map_line
+            map_name = map_line
 
-        # --- Map Details --- #
+        # --- Map Rarity --- #
         if map_line.split(":")[0]=="Rarity":
             map_rarity = map_line.split(":")[1]
-        if map_line.split(":")[0]=="Map Tier":
-        	map_tier = map_line.split(":")[1]
+
+        # --- Map Region --- #
         if map_line.split(":")[0]=="Atlas Region":
-        	map_region = map_line.split(":")[1]
+            map_region = map_line.split(":")[1]
+
+        # --- Map Level --- #    
         if map_line.split(":")[0]=="Item Level":
-        	map_level = map_line.split(":")[1]
+            map_level = map_line.split(":")[1]
 
-
-    ### Returns
-    if label.lower() == "name":
-        return map_name.replace("\n","").replace('\r', '')
-    elif label.lower() == "tier":
-        return map_tier.replace("\n","").replace('\r', '')
-    elif label.lower() == "lvl":
-        return map_level.replace("\n","").replace('\r', '')
-    elif label.lower() == "region":
-        return map_region.replace("\n","").replace('\r', '')
+    if valid:
+        ### Returns
+        if label.lower() == "name":
+            return map_name.replace("\n","").replace('\r', '')
+        elif label.lower() == "tier":
+            return map_tier.replace("\n","").replace('\r', '')
+        elif label.lower() == "lvl":
+            return map_level.replace("\n","").replace('\r', '')
+        elif label.lower() == "region":
+            return map_region.replace("\n","").replace('\r', '')
+    else:
+        print("Clipboard does not contain a valid map.\n")
+        return "error"
 #############################################################
 
 def calculate_map_time():
@@ -1064,15 +1076,24 @@ def main_block(process_type):
         while True:
             #print("---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n")
             print("")
-            current_tier = validate_map_tier(input("Enter the map tier (Leave blank to read from clipboard): "))
-
             while True:
-                if current_tier == "":
-                    current_tier = get_map_detail_from_clip("tier")
-                    current_map  = get_map_detail_from_clip("name")
-                    break
-                else:
-                    current_map  = validate_map_name(input("Enter the map name: "))
+                valid_map    = False
+                current_tier = validate_map_tier(input("Enter the map tier (Leave blank to read from clipboard): "))
+
+                while True:
+                    if current_tier == "":
+                        current_tier = get_map_detail_from_clip("tier")
+                        if current_tier == "error":
+                            break
+                        current_map  = get_map_detail_from_clip("name")
+                        valid_map = True
+                        break
+                    else:
+                        current_map  = validate_map_name(input("Enter the map name: "))
+                        valid_map = True
+                        break
+                        
+                if valid_map:
                     break
 
             current_xp   = get_xp_online(account_name,char_name)
