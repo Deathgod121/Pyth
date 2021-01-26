@@ -1096,6 +1096,7 @@ def main_block(process_type):
                 if valid_map:
                     break
 
+            print("\nRunning map T%s - %s" % (current_tier.replace(" ",""), current_map))                        
             current_xp   = get_xp_online(account_name,char_name)
 
             time_taken   = calculate_map_time()
