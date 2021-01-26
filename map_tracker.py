@@ -3,10 +3,35 @@ import psycopg2
 from datetime import datetime
 import os
 import sys
+import requests 
+import json
+
+account_name = "Dometire"
+PARAMS = {'accountName':account_name} 
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36'}
 
 ############################################################
 ############################################################
 #######################  FUNCTIONS  ########################
+def get_xp_online(account_name ,character_name):
+    account_name   = account_name.lower()
+    character_name = character_name.lower()
+
+    PARAMS = {'accountName':account_name} 
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36'}
+
+    URL = "https://www.pathofexile.com/character-window/get-characters"
+
+    api_request = requests.get(url = URL, params = PARAMS, headers = headers) 
+    json_str = api_request.content.decode()
+    cleaned = json_str.strip("[{").strip("}]")
+
+    for char_name in cleaned.split("},{"):
+        name = char_name.split(",")[0].split(":")[1].strip('"')
+
+        if name.strip('"').lower() == character_name.lower():
+            return char_name.split(",")[6].split(":")[1].strip('"')
+
 def build_data_dictionary(path_dir):
     try:
         log_file = False
@@ -697,6 +722,7 @@ def calc_quickest_map(data_dict):
 
 def calc_deadliest_map(data_dict):
     death_count_per_map_dict = {}
+    map_name                 = "" 
 
     for key, value in data_dict.items():
         line        = str(value)
@@ -716,14 +742,13 @@ def calc_deadliest_map(data_dict):
         line        = line[line.index("|")+1:]
         deaths      = line[0:].strip()
 
-        if int(deaths) > 0:
-            if name in death_count_per_map_dict:
-                curr_deaths = death_count_per_map_dict[name]
-                curr_deaths = int(curr_deaths) + int(deaths)
-                death_count_per_map_dict.pop(name)
-                death_count_per_map_dict[name] = curr_deaths
-            else:
-                death_count_per_map_dict[name] = deaths
+        if name in death_count_per_map_dict:
+            curr_deaths = death_count_per_map_dict[name]
+            curr_deaths = int(curr_deaths) + int(deaths)
+            death_count_per_map_dict.pop(name)
+            death_count_per_map_dict[name] = curr_deaths
+        else:
+            death_count_per_map_dict[name] = deaths
         
     most_deaths = 0
     for key, value in death_count_per_map_dict.items():
@@ -731,11 +756,13 @@ def calc_deadliest_map(data_dict):
             map_name   = "T" + tier 
             map_name   = map_name.ljust(3," ") + " --> " + key + " (%s)" % value
             most_deaths = value 
-    
-    return map_name
+    if map_name == "":
+        return "None! Yet ;)"
+    else:
+        return map_name
 ############################################################
 
-def loop_dashboard(path_dir,char_name):
+def loop_dashboard(path_dir,char_name,refresh_interval):
     while True:
         data_dict = build_data_dictionary(path_dir)
 
@@ -743,17 +770,7 @@ def loop_dashboard(path_dir,char_name):
             check_if_quit("quit")
 
         while True:
-            refresh_interval = input("Please enter your desired refresh interval in seconds: ")
-            if refresh_interval.isdigit():
-                refresh_interval = int(refresh_interval)
-                os.system('cls' if os.name == 'nt' else 'clear')
-                break
-
-        counter = 0
-
-        while True:
             data_dict = build_data_dictionary(path_dir)
-            counter = counter + 1
             os.system('cls' if os.name == 'nt' else 'clear')
             print("CTRL + C --> Quit Dashboard!" )
             print("")
@@ -801,7 +818,7 @@ def main_block(process_type):
 
     print("Run me in full screen mode (1080x1920) :P")
     print('Type "quit" at any input section to quit.')
-    print('If your XP changes outside of map please reset application.')
+    print('If your XP changes outside of a map. Please reset application.')
 
     try:
         ### Start job and check if path exists
@@ -817,6 +834,9 @@ def main_block(process_type):
         else:
             print("\nThe following path does not exist, please create it: %s" % path_dir) 
             check_if_quit("quit")
+
+        ### Get account Name
+        account_name = input("\nPlease enter POE account name: ")
 
         ### Select character file to use
         char_name = select_char(path_dir)
@@ -839,29 +859,38 @@ def main_block(process_type):
                 check_if_quit("quit") 
 
         if process_type == "dash":
+            while True:
+                refresh_interval = input("Please enter your desired refresh interval in seconds: ")
+                if refresh_interval.isdigit():
+                    refresh_interval = int(refresh_interval)
+                    os.system('cls' if os.name == 'nt' else 'clear')
+                    break
             os.system('cls' if os.name == 'nt' else 'clear')
-            try:
-                loop_dashboard(path_dir, char_name)
-            except Exception as e:
-                print("Error: %s" % e)
-                time.sleep(100)
-            print("AFTER")
-            time.sleep(10)
+            while True:
+                try:
+                    loop_dashboard(path_dir, char_name, refresh_interval)
+                except Exception as e:
+                    print(e)
+                    time.sleep(10)
+                    os.system('cls' if os.name == 'nt' else 'clear')
+                    print("\nNo data in the file. Run some maps. Refreshing in 10 seconds")
+                    for i in range(9):
+                        print(9-i)
+                        time.sleep(1)
+
             return "done"
 
-        print("-- ",str(datetime.today()), "--> Starting XP tracker." ,file=path_log_file,flush=True)
-        print("-- ",str(datetime.today()), "--> String Mask = current_lvl|tier|map|time_taken|xp_gained|lvld_up|deaths." ,file=path_log_file,flush=True)
-
         ### Validate current XP and get current lvl
-        while True:
-            current_xp  = validate_current_xp(input("Please enter your current XP: "))
-            current_lvl = get_current_lvl(current_xp)
-            response = input("Your current lvl is: %s. Is this correct (Y/N): " % current_lvl)
-            check_if_quit(response)
-            if response.lower() == "y":
-                break
-            elif response.lower() == "n":
-                None         
+        #while True:
+            #current_xp  = validate_current_xp(input("Please enter your current XP: "))
+        current_xp  = get_xp_online(account_name,char_name)
+        current_lvl = get_current_lvl(current_xp)
+            #response = input("Your current lvl is: %s. Is this correct (Y/N): " % current_lvl)
+            #check_if_quit(response)
+            #if response.lower() == "y":
+            #    break
+            #elif response.lower() == "n":
+            #    None         
 
         ### Clear the screen to focus on maps
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -871,12 +900,14 @@ def main_block(process_type):
             print("---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n")
             current_tier = validate_map_tier(input("Enter the map tier: "))
             current_map  = validate_map_name(input("Enter the map name: "))
+            current_xp   = get_xp_online(account_name,char_name)
 
             time_taken   = calculate_map_time()
             if time_taken != "aban": ## if we not tracking this map then reset.
 
                 ### Calculate XP gained
-                new_xp     = validate_current_xp(input("Please enter your current XP: "))
+                #new_xp     = validate_current_xp(input("Please enter your current XP: "))
+                new_xp     = get_xp_online(account_name,char_name)
                 xp_gained  = int(new_xp) - int(current_xp)
 
                 ### Check if we lvld up
